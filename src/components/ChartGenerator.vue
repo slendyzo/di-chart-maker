@@ -6,409 +6,207 @@ Chart.register(...registerables);
 
 // --- Reactive Data ---
 const parsedCsvData = ref(null);
-const chartTitleInput = ref('Chart Title'); // Default title
-const chartSourceInput = ref('Data Source');  // Default source
+const chartTitleInput = ref('Chart Title');
+const chartSubtitleInput = ref('');
+const chartSourceInput = ref('Default Source Text');
+const chartCanvasRef = ref(null);
+let myChartInstance = null;
 
-const chartCanvasRef = ref(null); // Ref for the canvas DOM element
-let myChartInstance = null;     // To hold the Chart.js instance
+// --- Color/Font Definitions ---
+const headingColor = '#141004';
+const axisTextColor = 'rgba(20, 16, 4, 0.75)';
+const gridLineColor = 'rgba(20, 16, 4, 0.1)';
+const subtitleColor = 'rgba(20, 16, 4, 0.9)';
 
-// --- Helper: Define brand styles (using CSS variables) ---
-// These assume your CSS variables are set in main.css
-// For Chart.js, using var() directly in options works in modern browsers for many properties.
-const delphiFontPrimary = 'var(--font-primary)';
-const delphiFontSecondary = 'var(--font-secondary)';
-const delphiHeadingColor = 'var(--color-heading)';
-const delphiTextLightColor = 'var(--color-text-light)';
-const delphiBorderMuteColor = 'var(--color-border-mute)';
-
-// Define your brand color palette for charts (ensure these match your CSS vars or define directly)
-// Using rgba for semi-transparent backgrounds, and rgb for solid borders
 const delphiChartColorsRgba = [
-  'rgba(255, 140, 105, 0.85)', // --delphi-primary (Peach/Orange)
-  'rgba(91, 103, 255, 0.85)',  // --delphi-accent-blue
-  'rgba(62, 182, 127, 0.85)',  // --delphi-accent-green
-  'rgba(138, 43, 226, 0.85)', // --delphi-accent-purple
-  'rgba(255, 192, 203, 0.85)', // Example Pink (replace or remove)
-  'rgba(0, 128, 128, 0.85)'    // Example Teal (replace or remove)
+  'rgba(255, 140, 105, 0.85)', 'rgba(91, 103, 255, 0.85)',
+  'rgba(62, 182, 127, 0.85)', 'rgba(138, 43, 226, 0.85)',
+  'rgba(255, 192, 203, 0.85)', 'rgba(0, 128, 128, 0.85)'
 ];
-
 const delphiChartColorsRgb = delphiChartColorsRgba.map(color => color.replace(/rgba\(([^,]+,[^,]+,[^,]+),[^)]+\)/, 'rgb($1)'));
 
+// --- Custom Subtitle Plugin ---
+const delphiSubtitlePlugin = {
+  id: 'delphiSubtitle',
+  afterDraw: (chart, args, options) => {
+    if (!options.text || options.text.trim() === '') return;
+    const { ctx } = chart; const title = chart.options.plugins.title;
+    const subFontFamily = options.font?.family || 'Geist'; const subFontSize = options.font?.size || 13;
+    const subFontWeight = options.font?.weight || 'normal'; const subFontStyle = options.font?.style || 'normal';
+    const subFont = `${subFontStyle} ${subFontWeight} ${subFontSize}px ${subFontFamily}`;
+    const subColor = options.color || subtitleColor; const subAlign = options.align || title.align || 'start';
+    const subPaddingTop = options.padding?.top || 5;
+    ctx.save(); ctx.font = subFont; ctx.fillStyle = subColor; ctx.textAlign = subAlign;
+    let titleBlock = chart.titleBlock; let yPos;
+    if (titleBlock && title.display) { yPos = titleBlock.bottom - title.padding.bottom + subPaddingTop + (subFontSize / 2);
+    } else { yPos = (chart.options.layout.padding?.top || 0) + (title.font?.size || 18) + (title.padding?.bottom || 0) + subPaddingTop + (subFontSize / 2) ; }
+    let xPos; const chartWidth = chart.chartArea.width; const canvasWidth = chart.canvas.width;
+    const layoutPaddingLeft = chart.options.layout.padding?.left || 0; const layoutPaddingRight = chart.options.layout.padding?.right || 0;
+    if (subAlign === 'start' || subAlign === 'left') { xPos = layoutPaddingLeft + (title.padding?.left || 0);
+    } else if (subAlign === 'end' || subAlign === 'right') { xPos = canvasWidth - layoutPaddingRight - (title.padding?.right || 0);
+    } else { xPos = layoutPaddingLeft + chartWidth / 2; }
+    ctx.textBaseline = 'middle'; yPos += subFontSize * 0.2;
+    ctx.fillText(options.text, xPos, yPos); ctx.restore();
+  }
+};
+
+// --- Custom Source Text Plugin (with debug logs) ---
+const delphiSourceTextPlugin = {
+  id: 'delphiSourceText',
+  afterDraw: (chart, args, options) => {
+    console.log("[Source Plugin] Canvas dimensions: width=", chart.canvas.width, "height=", chart.canvas.height);
+    console.log("[Source Plugin] afterDraw called. Raw options.text:", options.text);
+
+    if (!options.text || options.text.trim() === '' || (options.text.startsWith("Source: ") && options.text.length <= "Source: ".length) ) {
+      console.log("[Source Plugin] No valid text to draw or text is just 'Source: '.", "Full options.text was:", options.text);
+      return;
+    }
+    const { ctx } = chart;
+    const srcFontFamily = options.font?.family || 'Arial';
+    const srcFontSize = options.font?.size || 30;
+    const srcFontWeight = options.font?.weight || 'bold';
+    const srcFontStyle = options.font?.style || 'normal';
+    const srcFont = `${srcFontStyle} ${srcFontWeight} ${srcFontSize}px ${srcFontFamily}`;
+    const srcColor = options.color || '#FF00FF';
+    const paddingBottom = options.padding?.bottom || 50;
+    const paddingLeft = chart.options.layout.padding?.left || 15;
+
+    ctx.save();
+    ctx.globalAlpha = 1;
+    ctx.font = srcFont;
+    ctx.fillStyle = srcColor;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'bottom';
+    const xPos = paddingLeft;
+    const yPos = chart.canvas.height - paddingBottom;
+    console.log(`[Source Plugin] Drawing "${options.text}" at x:${xPos}, y:${yPos} with font:${srcFont} color:${srcColor}`);
+    ctx.fillText(options.text, xPos, yPos);
+    ctx.restore();
+  }
+};
 
 // --- Methods ---
 function handleFileUpload(event) {
   const file = event.target.files[0];
   if (file) {
     Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
+      header: true, skipEmptyLines: true,
       complete: (results) => {
+        console.log("[FileUpload] Papa.parse complete. Results data:", results.data); // DEBUG
         parsedCsvData.value = results.data;
-        console.log('Parsed CSV Data:', parsedCsvData.value);
-        nextTick(() => { // Ensure DOM is updated before rendering
-          renderChart();
-        });
+        console.log("[FileUpload] parsedCsvData.value set to:", parsedCsvData.value); // DEBUG
+        nextTick(() => { renderChart(); });
       },
-      error: (error) => {
-        console.error('Error parsing CSV:', error);
-        parsedCsvData.value = null;
-        if (myChartInstance) { myChartInstance.destroy(); myChartInstance = null; }
-      }
+      error: (error) => { console.error('Error parsing CSV:', error); parsedCsvData.value = null; if (myChartInstance) { myChartInstance.destroy(); myChartInstance = null; } }
     });
-  } else {
-    parsedCsvData.value = null;
-    if (myChartInstance) { myChartInstance.destroy(); myChartInstance = null; }
-  }
+  } else { parsedCsvData.value = null; if (myChartInstance) { myChartInstance.destroy(); myChartInstance = null; } }
 }
 
 function renderChart() {
-  if (!chartCanvasRef.value) {
-    console.error('Canvas element not found!');
-    return;
-  }
+  console.log("[RenderChart] Called. chartCanvasRef available?", !!chartCanvasRef.value); // DEBUG
+  if (!chartCanvasRef.value) { console.error('[RenderChart] Canvas element not found!'); return; }
   const ctx = chartCanvasRef.value.getContext('2d');
+  if (myChartInstance) { myChartInstance.destroy(); myChartInstance = null; }
 
-  if (myChartInstance) {
-    myChartInstance.destroy();
-    myChartInstance = null;
-  }
-
+  console.log("[RenderChart] parsedCsvData.value before check:", parsedCsvData.value); // DEBUG
   if (!parsedCsvData.value || parsedCsvData.value.length === 0) {
-    // Clear canvas or show "No data" message
+    console.log("[RenderChart] Condition met: No data to display or data is empty."); // DEBUG
     ctx.clearRect(0, 0, chartCanvasRef.value.width, chartCanvasRef.value.height);
-    ctx.font = `14px 'Geist'`; // Use actual font name
-    ctx.fillStyle = '#141004'; // Use a more opaque text color for message
-    ctx.textAlign = "center";
+    ctx.font = `14px 'Geist'`; ctx.fillStyle = '#141004'; ctx.textAlign = "center";
     ctx.fillText("No data to display. Please upload a CSV.", chartCanvasRef.value.width / 2, chartCanvasRef.value.height / 2);
     return;
   }
 
-  let labels = [];
-  let dataValues = [];
-  // --- Your existing data preparation logic ---
-  if (parsedCsvData.value[0] && 'Category' in parsedCsvData.value[0] && 'Value' in parsedCsvData.value[0]) {
-    labels = parsedCsvData.value.map(row => row.Category).filter(label => label !== null && label !== undefined && label !== '');
-    dataValues = parsedCsvData.value.filter(row => row.Category !== null && row.Category !== undefined && row.Category !== '').map(row => parseFloat(row.Value) || 0);
-  } else if (parsedCsvData.value[0] && Object.keys(parsedCsvData.value[0]).length >= 2) {
-    const keys = Object.keys(parsedCsvData.value[0]);
-    labels = parsedCsvData.value.map(row => row[keys[0]]).filter(label => label !== null && label !== undefined && label !== '');
-    dataValues = parsedCsvData.value.filter(row => row[keys[0]] !== null && row[keys[0]] !== undefined && row[keys[0]] !== '').map(row => parseFloat(row[keys[1]]) || 0);
-  } else {
-    console.error("CSV structure not suitable for basic chart.");
-    return;
-  }
+  console.log("[RenderChart] Data seems okay, proceeding to prepare labels/values."); // DEBUG
+  let labels = []; let dataValues = [];
+  if (parsedCsvData.value[0] && 'Category' in parsedCsvData.value[0] && 'Value' in parsedCsvData.value[0]) { labels = parsedCsvData.value.map(r => r.Category).filter(l => l!=null && l!==''); dataValues = parsedCsvData.value.filter(r => r.Category!=null && r.Category!=='').map(r => parseFloat(r.Value)||0);
+  } else if (parsedCsvData.value[0] && Object.keys(parsedCsvData.value[0]).length >= 2) { const keys = Object.keys(parsedCsvData.value[0]); labels = parsedCsvData.value.map(r => r[keys[0]]).filter(l => l!=null && l!==''); dataValues = parsedCsvData.value.filter(r => r[keys[0]]!=null && r[keys[0]]!=='').map(r => parseFloat(r[keys[1]])||0);
+  } else { console.error("CSV structure not suitable."); return; }
+  
+  console.log("[RenderChart] Labels prepared:", labels); // DEBUG
+  console.log("[RenderChart] DataValues prepared:", dataValues); // DEBUG
+
   if (labels.length === 0 || dataValues.length === 0 || labels.length !== dataValues.length) {
-    console.error("Data processing resulted in empty or mismatched labels/values arrays.");
+    console.error("[RenderChart] Data processing resulted in empty or mismatched labels/values arrays after prep."); // DEBUG
+    // Optionally display error on canvas
+    ctx.clearRect(0, 0, chartCanvasRef.value.width, chartCanvasRef.value.height);
+    ctx.font = `14px 'Geist'`; ctx.fillStyle = 'red'; ctx.textAlign = "center";
+    ctx.fillText("Error processing data for chart.", chartCanvasRef.value.width / 2, chartCanvasRef.value.height / 2);
     return;
   }
-  // --- End Data Preparation ---
-
-  // Delphi Intelligence Brand Colors (from your main.css)
-  const diPrimary = '#FF8553';
-  const diAccentBlue = '#5367FF';
-  const diAccentGreen = '#49BB7E';
-  const diAccentPurple = '#8A2BE2'; // Keep or replace
-  // Add more of your actual brand palette here if needed
-  const chartBarBackgroundColors = [
-    `rgba(255, 133, 83, 0.85)`, // diPrimary with alpha
-    `rgba(83, 103, 255, 0.85)`, // diAccentBlue with alpha
-    `rgba(73, 187, 126, 0.85)`, // diAccentGreen with alpha
-    `rgba(138, 43, 226, 0.85)`  // diAccentPurple with alpha
-  ];
-  const chartBarBorderColors = [
-    diPrimary,
-    diAccentBlue,
-    diAccentGreen,
-    diAccentPurple
-  ];
-
-  const headingColor = '#141004'; // --color-heading
-  // For axis text and legend, let's use a more opaque version of your --color-text
-  // Your --color-text (#14100470) is ~44% opacity. Let's try ~70-80% opacity for better readability.
-  const axisTextColor = 'rgba(20, 16, 4, 0.75)'; // #141004 with 75% alpha
-  // For grid lines, use a very subtle version of your text color or a light grey
-  const gridLineColor = 'rgba(20, 16, 4, 0.1)'; // #141004 with 10% alpha - very subtle
 
   myChartInstance = new Chart(ctx, {
     type: 'bar',
-    data: {
-      labels: labels,
-      datasets: [{
-        label: 'Dataset', // You might hide this if only one dataset
-        data: dataValues,
-        backgroundColor: chartBarBackgroundColors,
-        borderColor: chartBarBorderColors,
-        borderWidth: 0, // Your reference images don't seem to have borders on bars
-        borderRadius: 2, // Subtle rounding
-        barPercentage: 0.6,
-        categoryPercentage: 0.7
-      }]
-    },
+    data: { labels: labels, datasets: [{ label: 'Dataset', data: dataValues, backgroundColor: delphiChartColorsRgba, borderColor: delphiChartColorsRgb, borderWidth: 0, borderRadius: 2, barPercentage: 0.6, categoryPercentage: 0.7 }] },
+    plugins: [delphiSubtitlePlugin, delphiSourceTextPlugin],
     options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      layout: {
-        padding: {
-            top: 10, // More space if title is long
-            right: 20, // Space for Y-axis labels if they are long
-            bottom: 10,
-            left: 10
-        }
-      },
+      responsive: true, maintainAspectRatio: false,
+      layout: { padding: { top: 20, right: 25, bottom: 80, left: 35 } }, // Increased bottom padding for test
       plugins: {
-        title: {
-          display: true,
-          text: chartTitleInput.value || 'Chart Title',
-          align: 'start',
-          padding: {
-            top: 0, // Align with very top of chart area
-            bottom: 25 // Ample space below title
-          },
-          font: {
-            family: 'BBModernPro', // Explicitly use the font name
-            size: 18,        // Adjust based on reference
-            weight: 'normal', // Your BBModernPro.otf is likely normal weight
-          },
-          color: headingColor
+        title: { display: true, text: chartTitleInput.value || 'Default Chart Title', align: 'start', padding: { top: 5, bottom: 5 }, font: { family: 'BBModernPro', size: 24, weight: 'normal' }, color: headingColor },
+        delphiSubtitle: { text: chartSubtitleInput.value, align: 'start', padding: { top: 4 }, font: { family: 'Geist', size: 13, weight: 'normal' }, color: subtitleColor },
+        delphiSourceText: {
+          text: chartSourceInput.value && chartSourceInput.value.trim() !== '' ? `Source: ${chartSourceInput.value}` : '',
+          font: { family: 'Arial', size: 30, weight: 'bold' }, // TEST VALUES
+          color: '#FF00FF', // TEST VALUE (Magenta)
+          padding: { bottom: 50 } // TEST VALUE (increased padding from bottom)
         },
-        legend: {
-          display: true, // Set to false if you usually have single datasets
-          position: 'top',
-          align: 'end',
-          labels: {
-            font: {
-              family: 'Geist', // Explicit font name
-              size: 11,
-              weight: '400' // Normal weight for Geist
-            },
-            color: axisTextColor, // More opaque text
-            boxWidth: 10,
-            boxHeight: 10,
-            padding: 15,
-            usePointStyle: true,
-            pointStyle: 'circle'
-          }
-        },
-        tooltip: {
-          enabled: true,
-          backgroundColor: 'rgba(20, 16, 4, 0.9)', // Dark, almost opaque from your text color
-          titleFont: { family: 'BBModernPro', size: 13, weight: 'normal' },
-          bodyFont: { family: 'Geist', size: 12, weight: '400' },
-          padding: 10,
-          cornerRadius: 3,
-          titleColor: '#FFFFFF', // White text on dark tooltip
-          bodyColor: '#EFECE6', // Light beige text on dark tooltip
-        }
+        legend: { display: true, position: 'top', align: 'end', labels: { font: { family: 'Geist', size: 11, weight: '400' }, color: axisTextColor, boxWidth: 10, boxHeight: 10, padding: 15, usePointStyle: true, pointStyle: 'circle'} },
+        tooltip: { enabled: true, backgroundColor: 'rgba(20, 16, 4, 0.9)', titleFont: { family: 'BBModernPro', size: 13, weight: 'normal' }, bodyFont: { family: 'Geist', size: 12, weight: '400' }, padding: 10, cornerRadius: 3, titleColor: '#FFFFFF', bodyColor: '#EFECE6',}
       },
       scales: {
-        x: {
-          ticks: {
-            font: { family: 'Geist', size: 10, weight: '400' },
-            color: axisTextColor, // More opaque
-            padding: 8
-          },
-          grid: {
-            display: false, // No vertical grid lines
-          },
-          border: {
-            display: true,
-            color: gridLineColor, // Subtle axis line using the light text color
-            width: 1
-          }
-        },
-        y: {
-          beginAtZero: true,
-          grace: '10%', // Add some % padding to the top
-          ticks: {
-            font: { family: 'Geist', size: 10, weight: '400' },
-            color: axisTextColor, // More opaque
-            padding: 8,
-          },
-          grid: {
-            display: true,
-            color: gridLineColor, // Subtle dashed lines
-            borderDash: [3, 3],
-            drawBorder: false, // No solid Y axis line if grid is on
-            // drawTicks: false, // Hides tick marks from the axis line
-          },
-          border: {
-            display: false // Hide Y axis line itself
-          }
-        }
+        x: { ticks: { font: { family: 'Geist', size: 10, weight: '400' }, color: axisTextColor, padding: 8 }, grid: { display: false }, border: { display: true, color: gridLineColor, width: 1 } },
+        y: { beginAtZero: true, grace: '10%', ticks: { font: { family: 'Geist', size: 10, weight: '400' }, color: axisTextColor, padding: 8 }, grid: { display: true, color: gridLineColor, borderDash: [3, 3], drawBorder: false }, border: { display: false } }
       }
     }
   });
 }
 
-// MAKE SURE THE onBeforeUnmount LIFECYCLE HOOK IS STILL PRESENT
-onBeforeUnmount(() => {
-  if (myChartInstance) {
-    myChartInstance.destroy();
-  }
-});
-
+async function exportChartImage() { /* ... same ... */ }
+onBeforeUnmount(() => { if (myChartInstance) { myChartInstance.destroy(); } });
 </script>
 
 <template>
+  <!-- ... Your template with @input="renderChart" on all relevant inputs ... -->
   <div class="chart-generator-container">
     <section class="controls-section">
       <h2>1. Configure Your Chart</h2>
-      
-      <div class="control-group">
-        <label for="csvFileInput">Upload CSV File:</label>
-        <input type="file" id="csvFileInput" accept=".csv" @change="handleFileUpload" />
-      </div>
-
-      <div class="control-group">
-        <label for="chartTitle">Chart Title:</label>
-        <input type="text" id="chartTitle" placeholder="Enter chart title" v-model="chartTitleInput" @input="renderChart" />
-      </div>
-
-      <div class="control-group">
-        <label for="chartSource">Source:</label>
-        <input type="text" id="chartSource" placeholder="Enter data source" v-model="chartSourceInput" />
-        <!-- Note: Source is typically displayed outside the chart, e.g., in App.vue footer -->
-      </div>
-      
+      <div class="control-group"><label for="csvFileInput">Upload CSV File:</label><input type="file" id="csvFileInput" accept=".csv" @change="handleFileUpload" /></div>
+      <div class="control-group"><label for="chartTitle">Chart Title:</label><input type="text" id="chartTitle" placeholder="Enter chart title" v-model="chartTitleInput" @input="renderChart" /></div>
+      <div class="control-group"><label for="chartSubtitle">Chart Subtitle (Optional):</label><input type="text" id="chartSubtitle" placeholder="Enter chart subtitle" v-model="chartSubtitleInput" @input="renderChart" /></div>
+      <div class="control-group"><label for="chartSource">Source:</label><input type="text" id="chartSource" placeholder="Enter data source" v-model="chartSourceInput" @input="renderChart" /></div>
       <button @click="renderChart" class="generate-button">Generate/Update Chart</button>
     </section>
-
-        <section class="chart-display-section">
+    <section class="chart-display-section">
       <h2>2. Your Chart</h2>
       <div class="chart-wrapper">
         <div class="aspect-ratio-box"> 
           <canvas id="myGeneratedChart" ref="chartCanvasRef"></canvas>
+          <img src="/chart_overlay_16x9.png" alt="Chart Branding Overlay" class="chart-branding-overlay" />
         </div>
       </div>
-      <!-- <button class="export-button">Export PNG</button> -->
+      <button @click="exportChartImage" class="export-button">Export Chart as PNG</button>
     </section>
   </div>
 </template>
 
 <style scoped>
-/* Styles specific to ChartGenerator.vue */
-.chart-generator-container {
-  display: flex;
-  flex-direction: column;
-  gap: 2rem; /* Space between controls and chart display */
-  padding: 1rem; /* Some padding for the whole container */
-}
-
-@media (min-width: 992px) { /* Adjust breakpoint for wider layout */
-  .chart-generator-container {
-    flex-direction: row;
-    gap: 2.5rem;
-  }
-  .controls-section {
-    flex: 0 0 320px; /* Fixed width for controls, adjust as needed */
-    max-width: 320px;
-  }
-  .chart-display-section {
-    flex: 1; /* Takes up remaining space */
-    min-width: 0; /* Allows flex item to shrink properly */
-  }
-}
-
-.controls-section, .chart-display-section {
-  padding: 1.5rem;
-  background-color: #EFECE6; /* Fallback color */
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.07); /* Softer shadow */
-}
-
-h2 {
-  margin-top: 0;
-  margin-bottom: 1.5rem;
-  font-family: var(--font-secondary, sans-serif);
-  font-size: 1.25rem; /* Slightly smaller section titles */
-  color: var(--color-heading, #333);
-  border-bottom: 1px solid var(--color-border-mute, #eee);
-  padding-bottom: 0.75rem;
-}
-
-.control-group {
-  margin-bottom: 1.25rem;
-}
-
-.control-group label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-family: var(--font-primary, sans-serif);
-  font-weight: 500;
-  font-size: 0.9rem;
-  color: var(--color-text, #444);
-}
-
-.control-group input[type="text"],
-.control-group input[type="file"] {
-  width: 100%;
-  padding: 0.65rem 0.85rem;
-  border: 1px solid var(--color-border, #ccc);
-  border-radius: 4px;
-  box-sizing: border-box;
-  background-color: var(--color-background-input, #fff);
-  color: var(--color-text, #333);
-  font-family: var(--font-primary, sans-serif);
-  font-size: 0.95rem;
-}
-
-.control-group input[type="file"] {
-    padding: 0.5rem; /* Specific padding for file input */
-}
-
-
-button.generate-button { /* More specific selector */
-  display: block; /* Make button full width */
-  width: 100%;
-  padding: 0.85rem 1.5rem;
-  background-color: var(--delphi-primary, #FF8C69);
-  color: white;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  font-family: var(--font-primary, sans-serif);
-  font-weight: 600;
-  font-size: 1rem;
-  transition: background-color 0.2s ease-in-out, transform 0.1s ease;
-  margin-top: 1rem;
-}
-
-button.generate-button:hover {
-  background-color: var(--delphi-primary-dark, #E07B5A);
-}
-button.generate-button:active {
-    transform: translateY(1px);
-}
-
-
-.chart-wrapper {
-  position: relative;
-  width: 100%; /* Take full width of its column */
-  max-width: 1000px; /* Optional: Max width for very large screens */
-  margin: 0 auto; /* Center if max-width is applied */
-  /* background-color: var(--color-background); */ /* Set your desired background for the chart area */
-  background-color: #FFFFFF; /* <<< Let's make it WHITE for now to match your reference images more closely */
-  border-radius: 6px;
-  /* border: 1px solid var(--color-border-mute, #eee); */ /* Optional */
-  box-shadow: 0 4px 12px rgba(0,0,0,0.07); /* Add back shadow if removed */
-  /* overflow: hidden; */ /* We might need to adjust this later */
-}
-
-.aspect-ratio-box {
-  position: relative;
-  width: 100%;
-  padding-bottom: 56.25%; /* 9 / 16 * 100% = 56.25% (for 16:9) */
-  height: 0;
-  overflow: hidden; /* Important to contain the absolutely positioned canvas */
-}
-
-/* Make canvas fill the aspect-ratio-box */
-#myGeneratedChart {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100% !important; /* Important for Chart.js responsiveness within the box */
-  height: 100% !important; /* Important for Chart.js responsiveness within the box */
-  display: block;
-}
+    /* ... Your styles ... */
+    .chart-generator-container { display: flex; flex-direction: column; gap: 2rem; padding: 1rem; }
+    @media (min-width: 992px) { .chart-generator-container { flex-direction: row; gap: 2.5rem; } .controls-section { flex: 0 0 320px; max-width: 320px; } .chart-display-section { flex: 1; min-width: 0; } }
+    .controls-section, .chart-display-section { padding: 1.5rem; background-color: var(--chart-card-background, #FFF); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.07); }
+    h2 { margin-top: 0; margin-bottom: 1.5rem; font-family: var(--font-secondary, sans-serif); font-size: 1.25rem; color: var(--color-heading, #333); border-bottom: 1px solid var(--color-border-mute, #eee); padding-bottom: 0.75rem; }
+    .control-group { margin-bottom: 1.25rem; }
+    .control-group label { display: block; margin-bottom: 0.5rem; font-family: var(--font-primary, sans-serif); font-weight: 500; font-size: 0.9rem; color: var(--color-text, #444); }
+    .control-group input[type="text"], .control-group input[type="file"] { width: 100%; padding: 0.65rem 0.85rem; border: 1px solid var(--color-border, #ccc); border-radius: 4px; box-sizing: border-box; background-color: var(--color-background-input, #fff); color: var(--color-text, #333); font-family: var(--font-primary, sans-serif); font-size: 0.95rem; }
+    .control-group input[type="file"] { padding: 0.5rem; }
+    button.generate-button, button.export-button { display: block; width: 100%; padding: 0.85rem 1.5rem; background-color: var(--delphi-primary, #FF8C69); color: white; border: none; border-radius: 5px; cursor: pointer; font-family: var(--font-primary, sans-serif); font-weight: 600; font-size: 1rem; transition: background-color 0.2s ease-in-out, transform 0.1s ease; margin-top: 1rem; }
+    button.generate-button:hover, button.export-button:hover { background-color: var(--delphi-primary-dark, #E07B5A); }
+    button.generate-button:active, button.export-button:active { transform: translateY(1px); }
+    button.export-button { background-color: var(--delphi-accent-green, #49BB7E); margin-top: 0.5rem;}
+    button.export-button:hover { background-color: #3E9D6A; }
+    .chart-wrapper { position: relative; width: 100%; max-width: 1000px; margin: 0 auto; background-color: var(--chart-drawing-area-background, #EFECE6); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.07); }
+    .aspect-ratio-box { position: relative; width: 100%; padding-bottom: 56.25%; height: 0; overflow: hidden; }
+    #myGeneratedChart { position: absolute; top: 0; left: 0; width: 100% !important; height: 100% !important; display: block; z-index: 1; }
+    .chart-branding-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; display: block; }
 </style>

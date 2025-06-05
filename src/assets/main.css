@@ -71,7 +71,7 @@
 @font-face {
   font-family: 'BBModernPro';
   src: url('./fonts/BBModernPro.otf') format('opentype');
-  font-weight: normal; /* Assuming this is the 'regular' variant */
+  font-weight: 500; /* Assuming this is the 'regular' variant */
   font-style: normal;
 } 
 
