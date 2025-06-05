@@ -1,35 +1,166 @@
-@import './base.css';
+/* src/assets/main.css */
 
-#app {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
+/* --- FONT DEFINITIONS --- */
+
+/* Geist Font Family (Primary Body Font) */
+@font-face {
+  font-family: 'Geist';
+  src: url('./fonts/Geist-Regular.otf') format('opentype');
+  font-weight: 400; /* Normal weight */
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Geist';
+  src: url('./fonts/Geist-RegularItalic.otf') format('opentype');
+  font-weight: 400; /* Normal weight */
+  font-style: italic;
+}
+
+@font-face {
+  font-family: 'Geist';
+  src: url('./fonts/Geist-Light.otf') format('opentype');
+  font-weight: 300; /* Light weight */
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Geist';
+  src: url('./fonts/Geist-LightItalic.otf') format('opentype');
+  font-weight: 300; /* Light weight */
+  font-style: italic;
+}
+
+@font-face {
+  font-family: 'Geist';
+  src: url('./fonts/Geist-Medium.otf') format('opentype');
+  font-weight: 500; /* Medium weight */
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Geist';
+  src: url('./fonts/Geist-SemiBold.otf') format('opentype');
+  font-weight: 600; /* SemiBold weight */
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Geist';
+  src: url('./fonts/Geist-Bold.otf') format('opentype');
+  font-weight: 700; /* Bold weight */
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Geist';
+  src: url('./fonts/Geist-BoldItalic.otf') format('opentype');
+  font-weight: 700; /* Bold weight */
+  font-style: italic;
+}
+
+@font-face {
+  font-family: 'Geist';
+  src: url('./fonts/Geist-Black.otf') format('opentype');
+  font-weight: 900; /* Black/Heavy weight */
+  font-style: normal;
+}
+
+
+/* BBModernPro Font Family (Secondary/Heading Font) */
+@font-face {
+  font-family: 'BBModernPro';
+  src: url('./fonts/BBModernPro.otf') format('opentype');
+  font-weight: normal; /* Assuming this is the 'regular' variant */
+  font-style: normal;
+} 
+
+/* --- END FONT DEFINITIONS --- */
+
+/* Define your brand colors as CSS variables */
+:root {
+  /* Delphi Intelligence Primary Colors */
+  --delphi-primary: #FF8553;        /* Your main peach/orange from rankings */
+  --delphi-primary-dark: #F45818;   /* A darker shade of primary for hover */
+  --delphi-accent-blue: #5367FF;    /* From Strategic AI Advantage */
+  --delphi-accent-green: #49BB7E;   /* From Strategic AI Advantage */
+  --delphi-accent-purple: #8A2BE2;  /* Example purple */
+  --delphi-logo-color: #141004;     /* Or whatever your logo text color is */
+
+  /* Grayscales & Text */
+  --color-text: #14100470; /* Dark text for readability */
+  --color-text-light: #14100440;
+  --color-heading: #141004; /* Slightly darker for headings */
+  
+  /* Backgrounds */
+  --color-background: #EFECE6;         /* Your light beige page background */
+  --color-background-soft: #14100403;    /* For component cards, slightly off-white or white */
+  --color-background-mute: #14100405;    /* Muted backgrounds */
+  --color-background-input: #FFFFFF;   /* Input field background */
+
+  /* Borders */
+  --color-border: #e0e0e0;
+  --color-border-mute: #eeeeee;
+  --color-border-hover: var(--delphi-primary);
+
+  /* Other UI elements */
+  --color-link: var(--delphi-accent-blue);
+  --color-link-hover: #4a56d8; /* Darker blue for link hover */
+
+  /* Fonts - Replace with your actual brand fonts */
+  --font-primary: 'Geist', sans-serif; /* Use Geist as the primary font */
+  --font-secondary: 'BBModernPro', sans-serif; /* Use BBModernPro as the secondary/heading font */
+
+  --section-gap: 1.5rem;
+}
+
+/* Apply a natural box layout model to all elements */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0; /* Reset padding too, be mindful if this breaks existing layout intentions */
+  position: relative; /* Often useful, but be aware of stacking contexts */
   font-weight: normal;
 }
 
-a,
-.green {
+body {
+  min-height: 100vh;
+  color: var(--color-text);
+  background: var(--color-background);
+  transition: color 0.5s, background-color 0.5s;
+  line-height: 1.6;
+  font-family: var(--font-primary);
+  font-size: 16px; /* Base font size */
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-secondary); /* Use secondary font for headings */
+  color: var(--color-heading);
+  font-weight: 600; /* Example weight */
+}
+
+a {
+  color: var(--color-link);
   text-decoration: none;
-  color: hsla(160, 100%, 37%, 1);
-  transition: 0.4s;
-  padding: 3px;
+  transition: color 0.2s ease-in-out;
 }
 
-@media (hover: hover) {
-  a:hover {
-    background-color: hsla(160, 100%, 37%, 0.2);
-  }
+a:hover {
+  color: var(--color-link-hover);
 }
 
-@media (min-width: 1024px) {
-  body {
-    display: flex;
-    place-items: center;
-  }
-
-  #app {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    padding: 0 2rem;
-  }
+/* You might want to add any @font-face declarations here if you are self-hosting fonts */
+/*
+@font-face {
+  font-family: 'YourBrandFont';
+  src: url('./fonts/YourBrandFont-Regular.woff2') format('woff2'),
+       url('./fonts/YourBrandFont-Regular.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
 }
+*/
