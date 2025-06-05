@@ -21,20 +21,28 @@ import ChartGenerator from './components/ChartGenerator.vue'; // Now active
 /* Styles specific to App.vue - this is for the overall page layout */
 header {
   line-height: 1.5;
-  padding: 2rem 0;
-  border-bottom: 1px solid var(--color-border); /* We'll define this in main.css */
-  text-align: center; /* Center header content */
+  padding-bottom: 2rem; /* Add some padding below header */
+  /* border-bottom: 1px solid var(--color-border); */ /* Removed border from original example */
+  text-align: center;
+  display: flex; /* For aligning logo and title */
+  flex-direction: column; /* Stack logo above title */
+  align-items: center; /* Center items horizontally */
+  margin-bottom: 2rem; /* Space below header */
 }
 
 .logo {
   display: block;
-  margin: 0 auto 2rem;
+  /* Adjust width and height as needed, make sure to keep aspect ratio */
+  height: 40px; /* Example height, adjust to your logo's aspect ratio and desired size */
+  width: auto; /* Let width adjust automatically to maintain aspect ratio */
+  margin-bottom: 1rem; /* Space between logo and title */
 }
 
 h1 {
-  font-size: 2rem;
-  font-weight: 600;
-  color: var(--color-heading); /* We'll define this in main.css */
+  font-size: 1.75rem; /* Adjust size as per your branding */
+  font-weight: 600; /* Or as per your brand */
+  color: var(--color-heading);
+  margin: 0; /* Reset margin for h1 */
 }
 
 main {
